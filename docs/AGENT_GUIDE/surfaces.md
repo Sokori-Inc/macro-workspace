@@ -380,6 +380,8 @@ send or discard, its sender and scheduling controls cannot change the operation.
 Attachments that can be opened are buttons named by their filename; Tab to one
 and press Enter or Space. Removal is a separate button named `Remove <filename>`.
 Removing a forwarded file keeps the received original.
+When checking draft autosave, edit the body of a draft with uploaded or forwarded
+attachments, wait for the save, and reopen it; the attachments should remain visible.
 AI email tool drafts persist body-only edits; changing recipients or the subject
 is not required to save the body.
 The three-dot button beneath a body reveals quoted content and a trimmed
@@ -397,6 +399,22 @@ send reports failure and restores its original reply editor if it is still mount
 A failure from an older, unmounted editor must not overwrite a newer edited reply.
 A presentation or refresh error after successful delivery is not a reason to send
 again.
+
+Send and schedule are refused with a notice while the device is offline, while a
+draft is still syncing (its save was accepted locally but not yet confirmed by the
+server; retry after a moment), or while an attachment has no completed upload. The
+composer keeps its content in each case. Attachments cannot be added while
+offline: a blocking notice explains and nothing is attached.
+For a new standalone email, a failed REST draft save is best-effort: Send can
+still proceed without a draft ID when no save was queued and no attachment is
+waiting to upload. A server rejection blocks sending even an existing draft.
+An internal draft-save failure, including a failed response read after the save
+commits, stays queued and retries with backoff. It must not permanently disable
+autosave; Send stays blocked until a save is confirmed. Invalid or unauthorized
+writes still stop retrying.
+Test this with a previously saved draft as well as a new one: a queued edit must
+block Send and scheduling until a save commits. Reopening a cached draft while
+offline must retain its uploaded attachments and confirmed scheduled time.
 
 While a schedule change is pending, immediate send and further schedule changes
 are disabled. Reply recipients cannot be edited or dragged during scheduling,
