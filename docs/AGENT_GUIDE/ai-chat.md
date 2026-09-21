@@ -463,6 +463,13 @@ that file in the Changes pane. Notes never go to GitHub. Collapsed files and
 unsent notes persist per session in localStorage; a new capture expands all
 files.
 
+The session header's **Changes** pill and sidebar totals display the linked
+PR's `additions` and `deletions` returned by the GitHub API, without summing
+transcript edits. The sidebar lists files from the captured PR diff. Counts
+refresh when a capture changes and every 30 seconds while the session is open.
+Zero-valued counts and unavailable GitHub statistics are hidden; a missing PR
+or failed GitHub request never falls back to estimated transcript totals.
+
 While the pane is closed and a capture has files, a **Changes ready to
 review** card sits above the composer with **Review changes**, **Pull request
 #N** (opens GitHub), and **Dismiss**. With no linked PR, the pane explains
