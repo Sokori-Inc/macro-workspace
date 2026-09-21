@@ -7,6 +7,7 @@ import {
   harnessTitle,
   sessionHarnessTitle,
   sessionRepositoryUrl,
+  showsSessionHarness,
 } from './compose-agent-session-options';
 
 describe('sessionRepositoryUrl', () => {
@@ -85,5 +86,26 @@ describe('sessionHarnessTitle', () => {
   it('uses the product name for Macro slugs', () => {
     expect(sessionHarnessTitle({ harness: 'macro-inmem' })).toBe('Macro Agent');
     expect(sessionHarnessTitle({ harness: 'in-memory' })).toBe('Macro Agent');
+  });
+});
+
+describe('showsSessionHarness', () => {
+  it('hides the Details row for in-memory chat agents', () => {
+    expect(showsSessionHarness({ harness: 'in-memory' })).toBe(false);
+    expect(showsSessionHarness({ harness: 'macro-inmem' })).toBe(false);
+    expect(showsSessionHarness({})).toBe(false);
+  });
+
+  it('keeps the Details row for coding runtimes', () => {
+    expect(showsSessionHarness({ harness: 'cursor' })).toBe(true);
+    expect(showsSessionHarness({ harness: 'claude-cloud' })).toBe(true);
+    expect(showsSessionHarness({ harness: 'sandbox' })).toBe(true);
+    expect(showsSessionHarness({ harness: 'my-laptop' })).toBe(true);
+  });
+
+  it('keeps the Details row for first-party coding bots stamped opencode', () => {
+    expect(
+      showsSessionHarness({ harness: 'opencode', botId: CURSOR_BOT_ID })
+    ).toBe(true);
   });
 });
