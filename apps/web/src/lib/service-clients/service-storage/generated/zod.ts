@@ -28610,6 +28610,12 @@ export const messageTimelineResponse = zod
                                 .describe(
                                   'Mark UUID serialized in the document.'
                                 ),
+                              marked_text: zod
+                                .string()
+                                .nullish()
+                                .describe(
+                                  'The marked text as it read when the discussion was created, already\ntrimmed and bounded. Absent on threads created or imported before\nsnapshots were captured: the text a mark covers cannot be recovered\nfrom the mark id alone.'
+                                ),
                               type: zod.enum(['markdown']),
                             })
                             .describe(
@@ -28910,6 +28916,12 @@ export const entityMessageCreateBody = zod
             zod
               .object({
                 mark_id: zod.uuid().describe('Serialized mark identifier.'),
+                marked_text: zod
+                  .string()
+                  .nullish()
+                  .describe(
+                    'The document text the mark covers, captured by the editor as the\ncomment is written. Trimmed and bounded before it is stored, so an\noversized or whitespace-only claim cannot reach the thread row.'
+                  ),
                 type: zod.enum(['markdown']),
               })
               .describe('Attach a discussion to a stable Markdown mark.'),
@@ -30137,6 +30149,12 @@ export const entityMessageGetThreadResponse = zod
                     mark_id: zod
                       .uuid()
                       .describe('Mark UUID serialized in the document.'),
+                    marked_text: zod
+                      .string()
+                      .nullish()
+                      .describe(
+                        'The marked text as it read when the discussion was created, already\ntrimmed and bounded. Absent on threads created or imported before\nsnapshots were captured: the text a mark covers cannot be recovered\nfrom the mark id alone.'
+                      ),
                     type: zod.enum(['markdown']),
                   })
                   .describe(
@@ -30219,6 +30237,12 @@ export const entityMessageDeleteThreadResponse = zod
                 mark_id: zod
                   .uuid()
                   .describe('Mark UUID serialized in the document.'),
+                marked_text: zod
+                  .string()
+                  .nullish()
+                  .describe(
+                    'The marked text as it read when the discussion was created, already\ntrimmed and bounded. Absent on threads created or imported before\nsnapshots were captured: the text a mark covers cannot be recovered\nfrom the mark id alone.'
+                  ),
                 type: zod.enum(['markdown']),
               })
               .describe(
@@ -30310,6 +30334,12 @@ export const entityMessagePatchThreadResponse = zod
                 mark_id: zod
                   .uuid()
                   .describe('Mark UUID serialized in the document.'),
+                marked_text: zod
+                  .string()
+                  .nullish()
+                  .describe(
+                    'The marked text as it read when the discussion was created, already\ntrimmed and bounded. Absent on threads created or imported before\nsnapshots were captured: the text a mark covers cannot be recovered\nfrom the mark id alone.'
+                  ),
                 type: zod.enum(['markdown']),
               })
               .describe(
