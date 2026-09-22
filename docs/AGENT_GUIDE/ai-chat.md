@@ -411,6 +411,17 @@ agent as working, every Thinking label, **Calling N tools** row, shimmering
 tool title, and working row settles — earlier turns never shimmer, even ones
 the runtime cut off mid-call. At most one shimmering row is ever expected.
 
+A `displayResults` call is the exception: it renders the dynamic-UI view the
+model composed — the same dashboard (markdown, timelines, entity lists, channel
+messages) that AI chat shows — full width in the transcript, and never folded
+into a tool group or behind a card. Expect the view itself, not a `DisplayResults`
+row. Incomplete arguments stay hidden while streaming, and a valid view updates
+as its arguments change. A completed call whose JSON does not match the schema
+shows `Couldn't render dashboard`; a failed call keeps its error card.
+Macro's built-in agents receive the complete view schema with the tool definition.
+External coding agents connected through Macro's MCP server do not currently
+receive this tool.
+
 ### Sharing a session
 
 In the Agents workspace, saved sessions use the shared top-bar controls: session
