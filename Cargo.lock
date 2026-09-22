@@ -2906,7 +2906,6 @@ dependencies = [
  "thiserror 2.0.18",
  "utoipa",
  "uuid",
- "workspace-hack",
 ]
 
 [[package]]
@@ -4033,6 +4032,7 @@ dependencies = [
  "macro_user_id",
  "model-entity",
  "model_notifications",
+ "model_owner",
  "model_user",
  "models_pagination",
  "models_properties",
@@ -7541,6 +7541,7 @@ dependencies = [
  "macro_authorization",
  "macro_user_id",
  "model-entity",
+ "model_owner",
  "model_user",
  "models_properties",
  "rootcause",
@@ -7688,6 +7689,7 @@ dependencies = [
  "macro_user_id",
  "model-entity",
  "model_file_type",
+ "model_owner",
  "models_grouping",
  "models_pagination",
  "models_properties",
@@ -7717,6 +7719,7 @@ dependencies = [
  "item_filters",
  "macro_user_id",
  "model_file_type",
+ "model_owner",
  "notification_state",
  "serde",
  "serde_json",
@@ -9192,6 +9195,7 @@ dependencies = [
  "filter_ast",
  "macro_user_id",
  "model_file_type",
+ "model_owner",
  "nom 8.0.0",
  "non_empty",
  "notification_state",
@@ -11177,7 +11181,6 @@ dependencies = [
  "sqlx",
  "thiserror 2.0.18",
  "uuid",
- "workspace-hack",
 ]
 
 [[package]]
@@ -11380,6 +11383,7 @@ dependencies = [
  "macro_user_id",
  "model",
  "model-entity",
+ "model_owner",
  "models_pagination",
  "models_properties",
  "reminders",
@@ -15949,6 +15953,7 @@ dependencies = [
  "mockall",
  "model-entity",
  "model-error-response",
+ "model_owner",
  "model_user",
  "models_grouping",
  "models_pagination",
@@ -16002,7 +16007,7 @@ dependencies = [
  "chrono",
  "document_sub_type",
  "item-filter-index",
- "macro_user_id",
+ "model_owner",
  "models_soup",
  "postcard",
  "predicate-index",
