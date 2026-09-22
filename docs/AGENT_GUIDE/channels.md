@@ -459,13 +459,26 @@ and return to the list: its top-level notifications should be read, including
 ones older than the global notification feed's loaded page. Notifications for
 separate thread stacks remain unread until that thread is opened.
 
-GraphQL channel lists use a smaller notification projection while keeping every
-notification's lifecycle and message/thread identifiers. Recent cards still show
-the channel's latest message, not historical notification content. When checking
-cached navigation, toggle Home → Chat repeatedly, then test All, Recent, and
-search: unread indicators, message destinations, and latest-message previews
-should agree. Cache reads remain asynchronous, so a brief list spinner can still
-appear; cached rows should not wait for the background network refresh.
+With GraphQL enabled, channel lists request at most one unread message notification
+per channel through an aliased, filtered `notifications` edge. An empty edge means
+no unread messages; invites and call notifications do not light the dot. Recent
+cards still use the latest-message preview. Full notification edges load only for
+an opened unread conversation, so mark-read and message targeting retain their
+complete thread-scoped inputs. Reopening a conversation must refresh that full
+edge even within 30 seconds; mark-read waits for the refresh rather than using
+older cached notifications. Failed lookups and successful lookups with no matching
+channel show **Conversation unavailable** with **Retry**, never permanent loading.
+Retry rather than marking just the one unread witness. Repeated mobile taps must
+open the last selected conversation, not a slower earlier request.
+
+Check cached Home → Chat navigation, All/Recent/search, and unread state after a
+read, a new notification, deletion, and reconnect. Cache reads remain asynchronous:
+a brief spinner can still appear, but cached rows must not wait for a background
+network refresh. If more unread notifications
+remain, the limited edge must refresh to the next one rather than staying empty.
+Refreshing unread indicators while composing must preserve the conversation,
+scroll position, and input focus. The backend must support the new edge arguments
+before deploying the frontend that requests them.
 
 ## Call lifecycle
 

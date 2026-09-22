@@ -280,10 +280,8 @@ export function useChannelByIdQuery(
 ) {
   return useSoupAstItemsQuery(
     () => channelByIdQueryArgs(channelId() ?? ''),
-    () => ({
-      enabled: enabled(),
-      staleTime: 30_000,
-      graphqlProjection: 'channel-list',
-    })
+    // Every activation needs a fresh complete edge for thread scoping and marking
+    // read. GraphQL revalidates on activation; keep the REST fallback stale too.
+    () => ({ enabled: enabled(), staleTime: 0 })
   );
 }
