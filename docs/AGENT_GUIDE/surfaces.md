@@ -477,11 +477,21 @@ just client-side row filtering. Cached inserts enforce the same rule before a
 refetch, including expanded groups and inactive cached Shared queries. Until
 viewer identity is available, document inserts into Shared are rejected.
 
-On touch devices (phones and tablets), Files keeps the original tabbed view and
-mobile navigation even when `enable-new-app-views` is enabled.
+With `enable-new-app-views` enabled, Files opens **Drive** using the
+same shell as Tasks, on desktop and touch devices alike.
 
-On desktop, with `enable-new-app-views` enabled, Files opens **Drive** using the
-same shell as Tasks. The sidebar contains `New file or folder`, `My Files`, `Recent`,
+On touch devices (phones and tablets), the Drive header is a scrollable pill
+strip — **Recent**, **My Files**, **Shared with me**, and **Folders** — with a
+leading filter-drawer button, like Tasks. Touch opens on **Recent** (the first
+pill). The drawer holds Sort (hidden on Recent, where the viewer's own
+edit order applies) and, on tab locations only, the same filter groups as the
+desktop **Filter** menu; active selections show a count badge on the trigger
+and a `Clear all` action in the drawer. The in-view `Search Drive` field, the
+Sort/Filter dropdowns, and the header New menu are desktop-only — search on
+touch uses the global search overlay and creation uses the dock's New button.
+The **Folders** pill opens the folder overview and stays highlighted inside
+any folder; tapping it from inside a folder returns to the overview, and
+selecting another pill leaves the folder tree. The sidebar contains `New file or folder`, `My Files`, `Recent`,
 `Shared with me`, collapsible Favorites, a searchable folder hierarchy, and a
 collapsible Tags section beneath the folders. Tags lists every tag you can apply,
 nested by `/` in the tag name, with a `New tag` action in its header. Choosing a
@@ -534,8 +544,9 @@ navigation originating inside a detail appends to that path. Cmd/Ctrl-clicking a
 row toggles selection; Shift-clicking a checkbox selects a range, and Shift+Enter
 opens the focused row in a new split. Cmd/Ctrl-clicking a row's folder link or
 search hit opens a new tab. Short filtered pages load more results automatically;
-a failed page shows a retry action instead of silently stopping. On narrow layouts,
-use `Select Drive view` for tabs, favorites, folders, and tags. Location, search,
+a failed page shows a retry action instead of silently stopping. On touch, tabs
+switch via the header pills; on narrow desktop layouts the header keeps a plain
+title and navigation goes through the hamburger overlay. Location, search,
 filters, expanded folders, list focus, and scroll position are restored when
 returning from an opened file.
 
