@@ -33,6 +33,7 @@
 | `/app/<document-type>/<uuid>` | Legacy document URL (including `md`, `pdf`, `canvas`, `spreadsheet`, and the other Drive document types); redirects to `/app/drive/<document-type>/<uuid>` |
 | `/app/documents`, `/app/files` | Legacy Files views; redirect to `/app/drive` |
 | `/app/chat/<uuid>` | A standalone AI chat |
+| `/app/automation/<uuid>` | Cron routine editor; event routines show a backend-managed notice |
 | `/app/agent/<uuid>` | An agent session (opened from `@macro-new` / `@coder` / `@cursor`) |
 | `/app/md/<doc>/chat/<chat>` | Doc + doc-scoped chat in a split |
 | `/app/md/<doc>/channel/<channel>` | Doc + channel in a split |
@@ -350,6 +351,23 @@ hover/press overlay and native tap highlight; the shimmer supplies feedback.
 Release, cancellation, or dragging outside
 restores the surface. Disabled controls stay still; reduced motion keeps only
 the static highlight.
+
+## Routines (automations)
+
+Create → Automation creates a cron-scheduled routine. Cron routines support
+editing instructions and schedule, Rename, Pause/Resume, Duplicate, Run Now,
+and History links to run chats. Edits autosave; Run Now also works while paused.
+If a background refresh fails, cached cron routines stay listed and their editor
+and queued autosave remain available. An initial load failure without cached data
+shows **Unable to load automation** instead. Cached event routines remain
+backend-managed even after a refresh failure.
+
+Event-triggered routines are backend-managed through the scheduled-action API.
+They do not appear in the frontend's cron-only automation lists. Opening an
+API-created event routine at `/app/automation/<uuid>` shows **Backend-managed
+routine**, not a cron editor. This surface offers no event editing, duplication,
+or run/history controls; manage those through the API. It never replaces an
+event trigger with a cron schedule. There is no event-filter composer yet.
 
 ## Command menu (Ctrl+K)
 
