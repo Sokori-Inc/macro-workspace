@@ -388,6 +388,12 @@ scrolls it into view, and briefly highlights it. For navigation regressions,
 exercise both a recent message and one outside the first page. Open another
 target while loading or highlighting: the previous request must not scroll the
 new thread or clear its highlight. Closing the split cancels pending positioning.
+The load gate and message body share one live thread source in both hosts. Cached
+body rendering should not wait for a second thread fetch, optional References,
+or inbox metadata. Inbox-dependent actions stay gated while ownership is unknown;
+explicit inbox IDs must never silently route to primary while links are loading.
+Background refreshes and older-message loading still update the same thread.
+Verify with API traffic delayed and with previously opened bodies offline.
 Collapsed thread cards use a compact text snippet; expanding mounts the message
 body and its attachments. On phones, messages form flat rows with horizontal
 separators and 16px side gutters; collapsed previews show one line. Desktop
@@ -713,6 +719,12 @@ use the standalone contact page.
 Company and contact headers have `Copy link` beside the side-panel toggle.
 It copies the record's direct URL and shows a confirmation toast; this is also
 available in the embedded company and contact breadcrumb header.
+
+Company selection actions **Set owner** and **Set revenue** remain available
+while team deal-stage definitions are loading. **Set stage** waits for the active
+team definition rather than opening an editor with system defaults. Check both
+the entity actions menu and command menu with stage requests delayed; cancel the
+editors without changing hosted data.
 
 `Collapse CRM sidebar` persists across visits; `Expand CRM sidebar` restores it.
 At narrow widths, `Show CRM navigation` opens the same navigation in a menu.
