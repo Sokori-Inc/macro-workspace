@@ -14,7 +14,6 @@ import {
   useCanAutofocusSplitContent,
   useSplitPanelOrThrow,
 } from '@components/app/split-layout/layoutUtils';
-import { emailThreadRoute } from '@components/app/split-layout/split-router/app-routes';
 import { EntityIcon } from '@core/component/EntityIcon';
 import { toEntityLoadError } from '@core/component/EntityLoadGate';
 import {
@@ -31,6 +30,7 @@ import { representativeThreadMessage } from '@queries/email/thread-subject';
 import { createEffect, createMemo, createSignal, Show } from 'solid-js';
 import { emailDetailSearch } from '../email-route';
 import { useEmailView } from '../email-view-context';
+import { emailThreadRoute } from '../route';
 import type { EmailThreadTarget } from '../types';
 import { useEmailDetailListNavigation } from '../use-email-detail-list-navigation';
 
