@@ -1,10 +1,14 @@
 import { agentsRouteId } from '@app/features/agents-view/core/route';
+import { driveSplitRoute } from '@app/features/drive-view/primitives/drive-route';
 import {
   getListNavigationSource,
   listNavigationSourceId,
   registerListNavigationSource,
   withListNavigationSource,
 } from '@app/features/soup/collection/list-navigation-source';
+import { createMemorySplitRouterLocation } from '@app/lib/split-router/integrations/memory';
+import { createSplitRouter } from '@app/lib/split-router/router';
+import { createRoutesManifest } from '@app/lib/split-router/routes';
 import type { ResizeZoneCtx } from '@core/component/Resize/types';
 import { toast } from '@core/component/Toast/Toast';
 import type { BlockOrchestrator } from '@core/orchestrator';
@@ -20,6 +24,7 @@ import {
   shouldShowSplitCloseButton,
 } from '../layoutUtils';
 import { createMobileSwipeLayout } from '../mobile/createMobileSwipeLayout';
+import { createAppSplitRouterLayout } from '../splitRouterLayout';
 
 vi.mock('@core/component/Toast/Toast', () => ({
   toast: { alert: vi.fn() },
@@ -803,6 +808,156 @@ describe('layoutManager', () => {
     });
   });
 
+  describe('router layout synchronization', () => {
+    it.each(['drive', 'drive/md/second-document'])(
+      'navigates a second Drive pane independently from %s, including history',
+      (initialPath) => {
+        createRoot((dispose) => {
+          const manager = createSplitLayout(createMockOrchestrator(), [
+            { type: 'component', id: 'documents' },
+            { type: 'component', id: 'documents' },
+          ]);
+          const routes = createRoutesManifest({
+            definitions: [driveSplitRoute],
+          });
+          const router = createSplitRouter({
+            routes,
+            layout: createAppSplitRouterLayout(manager, routes),
+            location: createMemorySplitRouterLocation(
+              `/drive/~/${initialPath}`
+            ),
+          });
+          const [first, second] = manager.splits();
+          const firstRoute = router.route(first.id);
+          manager.activateSplit(second.id);
+
+          router.navigate(second.id, '/drive/folder/second-folder');
+          const folderRoute = router.route(second.id);
+          expect(folderRoute?.matches.at(-1)).toEqual({
+            id: 'drive-folder',
+            params: { view: 'folder', folderId: 'second-folder' },
+          });
+          expect(router.route(first.id)).toEqual(firstRoute);
+          expect(manager.activeSplitId()).toBe(second.id);
+
+          router.navigate(second.id, '/drive/md/another-document');
+          expect(router.route(second.id)?.matches.at(-1)?.params).toEqual({
+            documentType: 'md',
+            documentId: 'another-document',
+          });
+          router.navigate(second.id, -1);
+          expect(router.route(second.id)).toEqual(folderRoute);
+          expect(router.route(first.id)).toEqual(firstRoute);
+          expect(manager.activeSplitId()).toBe(second.id);
+
+          router.navigate(second.id, '/drive/shared');
+          expect(router.route(second.id)?.matches.at(-1)).toEqual({
+            id: 'drive-tab',
+            params: { tab: 'shared' },
+          });
+          expect(router.route(first.id)).toEqual(firstRoute);
+          expect(manager.splits()).toHaveLength(2);
+          router.dispose();
+          dispose();
+        });
+      }
+    );
+
+    it('still activates the owner when another Drive pane opens the same document', () => {
+      createRoot((dispose) => {
+        const manager = createSplitLayout(createMockOrchestrator(), [
+          { type: 'component', id: 'documents' },
+          { type: 'component', id: 'documents' },
+        ]);
+        const routes = createRoutesManifest({
+          definitions: [driveSplitRoute],
+        });
+        const router = createSplitRouter({
+          routes,
+          layout: createAppSplitRouterLayout(manager, routes),
+          location: createMemorySplitRouterLocation(
+            '/drive/md/first-document/~/drive/md/second-document'
+          ),
+        });
+        const [first, second] = manager.splits();
+        const secondRoute = router.route(second.id);
+        manager.activateSplit(second.id);
+
+        router.navigate(second.id, '/drive/md/first-document');
+
+        expect(manager.activeSplitId()).toBe(first.id);
+        expect(router.route(second.id)).toEqual(secondRoute);
+        expect(manager.splits()).toHaveLength(2);
+        router.dispose();
+        dispose();
+      });
+    });
+
+    it('does not publish manager updates that leave router state unchanged', async () => {
+      let dispose!: () => void;
+      let updateEntry!: (state: Record<string, unknown>) => void;
+      let updateLocation!: (folderId?: string) => void;
+      const listener = vi.fn();
+
+      createRoot((rootDispose) => {
+        dispose = rootDispose;
+        const manager = createSplitLayout(createMockOrchestrator(), [
+          { type: 'component', id: 'documents' },
+        ]);
+        const split = manager.getSplit(manager.splits()[0]!.id)!;
+        const layout = createAppSplitRouterLayout(
+          manager,
+          createRoutesManifest({
+            definitions: [
+              {
+                id: 'drive',
+                path: 'drive',
+                children: [{ id: 'drive-folder', path: 'folder/:folderId' }],
+              },
+            ],
+          })
+        );
+        layout.subscribe(listener);
+
+        updateEntry = (state) => {
+          split.updateCurrentEntry((current) => ({ ...current, state }));
+        };
+        updateLocation = (folderId) => {
+          split.updateCurrentEntry((current) => ({
+            ...current,
+            entryMetadata: {
+              route: {
+                matches: folderId
+                  ? [
+                      { id: 'drive', params: {} },
+                      { id: 'drive-folder', params: { folderId } },
+                    ]
+                  : [{ id: 'drive', params: {} }],
+              },
+            },
+          }));
+        };
+      });
+      await Promise.resolve();
+
+      updateEntry({ scrollOffset: 120 });
+      await Promise.resolve();
+
+      expect(listener).not.toHaveBeenCalled();
+
+      updateLocation();
+      await Promise.resolve();
+
+      expect(listener).not.toHaveBeenCalled();
+
+      updateLocation('folder-1');
+      await Promise.resolve();
+
+      expect(listener).toHaveBeenCalledOnce();
+      dispose();
+    });
+  });
+
   describe('entry state', () => {
     it('captures registered entry state and merges with existing state', () => {
       createRoot((dispose) => {
@@ -831,6 +986,143 @@ describe('layoutManager', () => {
         });
         expect(split.history()[0].state).toEqual(split.currentEntryState());
 
+        dispose();
+      });
+    });
+  });
+
+  describe('entry metadata', () => {
+    it('skips structurally equal metadata during reconciliation', () => {
+      createRoot((dispose) => {
+        const manager = createSplitLayout(createMockOrchestrator(), [
+          {
+            type: 'component',
+            id: 'documents',
+            entryMetadata: {
+              route: { matches: [{ id: 'drive', params: {} }] },
+              search: { drive: { tags: ['one'] } },
+            },
+          },
+        ]);
+        const before = manager.splits()[0]!;
+        const metadataBefore = before.content.entryMetadata;
+
+        manager.reconcile([
+          {
+            type: 'component',
+            id: 'documents',
+            entryMetadata: {
+              route: { matches: [{ id: 'drive', params: {} }] },
+              search: { drive: { tags: ['one'] } },
+            },
+          },
+        ]);
+
+        expect(manager.splits()[0]).toBe(before);
+        expect(manager.splits()[0]?.content.entryMetadata).toBe(metadataBefore);
+
+        dispose();
+      });
+    });
+
+    it('updates the current entry without remounting or emitting content changes', () => {
+      createRoot((dispose) => {
+        const orchestrator = createMockOrchestrator();
+        const manager = createSplitLayout(orchestrator, [
+          {
+            type: 'md',
+            id: 'doc-1',
+            entryMetadata: { source: 'initial' },
+          },
+        ]);
+        const split = manager.getSplit(manager.splits()[0].id)!;
+        const initialHistoryLength = split.history().length;
+        const listener = vi.fn();
+        split.registerContentChangeListener(listener);
+
+        split.updateCurrentEntry((current) => ({
+          ...current,
+          entryMetadata: { source: 'updated' },
+        }));
+
+        expect(split.history()).toHaveLength(initialHistoryLength);
+        expect(split.content().entryMetadata).toEqual({
+          source: 'updated',
+        });
+        expect(split.history().at(-1)?.entryMetadata).toEqual(
+          split.content().entryMetadata
+        );
+        expect(orchestrator.createBlockInstance).toHaveBeenCalledOnce();
+        expect(listener).not.toHaveBeenCalled();
+
+        dispose();
+      });
+    });
+
+    it('applies inbound metadata to same-identity content only', () => {
+      createRoot((dispose) => {
+        const manager = createSplitLayout(createMockOrchestrator(), [
+          {
+            type: 'component',
+            id: 'documents',
+            params: { privateParam: 'retained' },
+            state: { privateState: 'retained' },
+            entryMetadata: { source: 'initial' },
+          },
+        ]);
+        const split = manager.getSplit(manager.splits()[0].id)!;
+        const mountBefore = manager.splits()[0].mount;
+        const listener = vi.fn();
+        split.registerContentChangeListener(listener);
+
+        manager.reconcile([
+          {
+            type: 'component',
+            id: 'documents',
+            params: { privateParam: 'ignored' },
+            state: { privateState: 'ignored' },
+            entryMetadata: { source: 'inbound' },
+          },
+        ]);
+
+        expect(split.content()).toEqual({
+          type: 'component',
+          id: 'documents',
+          params: { privateParam: 'retained' },
+          state: { privateState: 'retained' },
+          entryMetadata: { source: 'inbound' },
+        });
+        expect(split.history().at(-1)).toEqual(split.content());
+        expect(manager.splits()[0].mount).toBe(mountBefore);
+        expect(listener).not.toHaveBeenCalled();
+
+        dispose();
+      });
+    });
+
+    it('restores metadata with the containing split-history entry', () => {
+      createRoot((dispose) => {
+        const manager = createSplitLayout(createMockOrchestrator(), [
+          { type: 'md', id: 'doc-1' },
+        ]);
+        const split = manager.getSplit(manager.splits()[0].id)!;
+        split.updateCurrentEntry((current) => ({
+          ...current,
+          entryMetadata: { source: 'first-entry' },
+        }));
+
+        split.replace({
+          next: {
+            type: 'md',
+            id: 'doc-2',
+            entryMetadata: { source: 'second-entry' },
+          },
+        });
+        split.goBack();
+
+        expect(split.content().entryMetadata).toEqual({
+          source: 'first-entry',
+        });
         dispose();
       });
     });

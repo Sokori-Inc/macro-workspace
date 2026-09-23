@@ -1,4 +1,5 @@
 import { isListViewID } from '@app/constants/list-views';
+import { driveDocumentFromContent } from '@app/features/drive-view/primitives/drive-route';
 import { URL_PARAMS as EMAIL_PARAMS } from '@app/features/email-thread/core/location';
 import { withListNavigationSource } from '@app/features/soup/collection/list-navigation-source';
 import {
@@ -26,6 +27,7 @@ import type {
   SplitContent,
   SplitHandle,
 } from '@components/app/split-layout/layoutManager';
+import { driveSplitContent } from '@components/app/split-layout/split-router/legacy-route';
 import { toast } from '@core/component/Toast/Toast';
 import { fileTypeToBlockName } from '@core/constant/allBlocks';
 import {
@@ -685,7 +687,13 @@ export const openEntityInSplitFromUnifiedList = async (
       : undefined;
   const referredFrom = options.referredFrom ?? sourceListView;
 
-  let splitContent: SplitContent = { ...content, params };
+  // Documents are hosted by Drive. Construct the canonical routed content
+  // before opening the split so the layout manager does not mount a legacy
+  // block and immediately replace it during router feedback.
+  const driveDocument = driveDocumentFromContent(content);
+  let splitContent: SplitContent = driveDocument
+    ? driveSplitContent({ kind: 'tab', tab: 'owned' }, driveDocument)
+    : { ...content, params };
   if (splitHandle && referredFrom && isListViewID(referredFrom)) {
     splitContent = withListNavigationSource(splitContent, splitHandle);
   }
@@ -696,7 +704,11 @@ export const openEntityInSplitFromUnifiedList = async (
     preferNewSplit: openInNewSplit,
     handle: splitHandle,
     mergeHistory,
-    allowDuplicate,
+    // Each routed document has a distinct Drive location even though all
+    // Drive splits share the same component identity.
+    allowDuplicate:
+      allowDuplicate ||
+      (splitContent.type === 'component' && splitContent.id === 'documents'),
     reopen:
       entity.type === 'channel' && !location && openChannelAtLatest
         ? 'latest'

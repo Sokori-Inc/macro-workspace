@@ -1,6 +1,11 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-const { toastAlert, ...operationMocks } = vi.hoisted(() => {
+const toastAlert = vi.hoisted(() => vi.fn());
+vi.mock('@core/component/Toast/Toast', () => ({
+  toast: { alert: toastAlert },
+}));
+
+const operationMocks = vi.hoisted(() => {
   const store: Record<string, string> = {};
   Object.defineProperty(globalThis, 'localStorage', {
     configurable: true,
@@ -18,7 +23,6 @@ const { toastAlert, ...operationMocks } = vi.hoisted(() => {
     },
   });
   return {
-    toastAlert: vi.fn(),
     bulkMarkNotificationsAsDone: vi.fn(async () => {}),
     bulkMarkNotificationsAsUndone: vi.fn(async () => {}),
     cancelQueries: vi.fn(async () => {}),
@@ -47,9 +51,6 @@ vi.mock('@service-connection/websocket', () => ({
   state: () => 'closed',
   createConnectionBlockWebsocketEffect: vi.fn(),
   createConnectionWebsocketEffect: vi.fn(),
-}));
-vi.mock('@core/component/Toast/Toast', () => ({
-  toast: { alert: toastAlert },
 }));
 vi.mock('@queries/client', () => ({
   queryClient: {
@@ -387,6 +388,55 @@ describe('calendar block navigation', () => {
       expect.objectContaining({ eventId: 'event-1' })
     );
   });
+});
+
+describe('Drive document routing', () => {
+  it.each(['md', 'pdf', 'canvas'] as const)(
+    'opens %s documents as canonical Drive content',
+    async (fileType) => {
+      const openWithSplit = vi.fn(() => ({ status: 'unavailable' }));
+      setGlobalSplitManager({
+        activeSplit: vi.fn(),
+        getOrchestrator: vi.fn(() => ({})),
+        getSplitByContent: vi.fn(),
+        openWithSplit,
+      } as unknown as SplitManager);
+
+      await openEntityInSplitFromUnifiedList(
+        {
+          type: 'document',
+          id: 'doc-1',
+          fileType,
+        } as EntityData,
+        { openInNewSplit: true }
+      );
+
+      expect(openWithSplit).toHaveBeenCalledWith(
+        {
+          type: 'component',
+          id: 'documents',
+          entryMetadata: {
+            route: {
+              matches: [
+                { id: 'drive', params: {} },
+                {
+                  id: 'drive-document',
+                  params: {
+                    documentId: 'doc-1',
+                    documentType: fileType,
+                  },
+                },
+              ],
+            },
+          },
+        },
+        expect.objectContaining({
+          allowDuplicate: true,
+          preferNewSplit: true,
+        })
+      );
+    }
+  );
 });
 
 describe('getChannelEntityTarget', () => {
