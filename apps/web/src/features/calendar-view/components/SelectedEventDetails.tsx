@@ -12,6 +12,11 @@ import {
   eventEmailRecipients,
   guestEmails,
 } from '@app/features/calendar/utils/guest-emails';
+import { EventRsvpSection } from '@app/features/calendar-view/components/EventRsvpSection';
+import { useOpenEventComposer } from '@app/features/calendar-view/components/use-open-event-composer';
+import { useOpenEventEmail } from '@app/features/calendar-view/components/use-open-event-email';
+import { copyCalendarEventMention } from '@app/features/calendar-view/copy-event-mention';
+import { copyGuestEmails } from '@app/features/calendar-view/copy-guest-emails';
 import { MobileDrawer } from '@components/app/mobile/MobileDrawer';
 import { toast } from '@core/component/Toast/Toast';
 import { isMobile } from '@core/mobile/isMobile';
@@ -36,11 +41,6 @@ import {
   useImperativeDialog,
 } from '@ui';
 import { type Accessor, createMemo, createSignal, For, Show } from 'solid-js';
-import { copyCalendarEventMention } from '../copy-event-mention';
-import { copyGuestEmails } from '../copy-guest-emails';
-import { EventRsvpSection } from './EventRsvpSection';
-import { useOpenEventComposer } from './use-open-event-composer';
-import { useOpenEventEmail } from './use-open-event-email';
 
 interface SelectedEventDetailsProps {
   anchor: Accessor<HTMLElement | undefined>;

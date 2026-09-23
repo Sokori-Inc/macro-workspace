@@ -27,7 +27,7 @@ import {
   onMount,
   Show,
 } from 'solid-js';
-import { createCalendarBlockRange } from '../calendar-range';
+import { createCalendarRange } from '../calendar-range';
 import {
   eventTimeFromOccurrenceKey,
   openCalendarEventSplit,
@@ -185,7 +185,7 @@ function CalendarEventPreviewContent(props: {
 
 /**
  * Keyword search over the caller's calendar events, opened from the calendar
- * header. Selecting a result re-aims the singleton calendar block at that
+ * header. Selecting a result re-aims the singleton Calendar view at that
  * occurrence, the same navigation an event mention or soup row performs.
  */
 export function CalendarSearch() {
@@ -267,7 +267,7 @@ function CalendarSearchControl() {
     const time = event.occurrenceKey
       ? eventTimeFromOccurrenceKey(event.occurrenceKey)
       : event.time;
-    const range = time ? createCalendarBlockRange(time) : undefined;
+    const range = time ? createCalendarRange(time) : undefined;
 
     if (range && isCalendarRangeSupported(range)) {
       setOpen(false);

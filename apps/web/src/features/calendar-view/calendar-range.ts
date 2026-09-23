@@ -5,7 +5,7 @@ import {
 } from '@queries/calendar/occurrences';
 
 /** Event timing fields available to calendar navigation call sites. */
-export type CalendarBlockEventTime =
+export type CalendarEventTime =
   | { kind: 'timed'; startsAt: string; endsAt?: string }
   | { kind: 'allDay'; startDate: string; endDate?: string };
 
@@ -20,8 +20,8 @@ function nextLocalDay(date: Date) {
  * expanded to local-day boundaries so both UTC and date-only API boundaries
  * remain non-empty and can also match all-day projections.
  */
-export function createCalendarBlockRange(
-  time: CalendarBlockEventTime
+export function createCalendarRange(
+  time: CalendarEventTime
 ): CalendarOccurrenceQueryRange | undefined {
   if (time.kind === 'allDay') {
     const start = parseLocalDate(time.startDate);
@@ -59,7 +59,7 @@ export function createCalendarBlockRange(
 }
 
 /** Whether a runtime value is a complete, non-empty occurrence query range. */
-export function isCalendarBlockRange(
+export function isCalendarRange(
   value: unknown
 ): value is CalendarOccurrenceQueryRange {
   if (!value || typeof value !== 'object') return false;

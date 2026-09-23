@@ -1,7 +1,7 @@
 import { parseLocalDate } from '@app/features/calendar/utils/calendar-date';
 import type { CalendarOccurrenceItem } from '@service-storage/generated/schemas/calendarOccurrenceItem';
 import type { CalendarFocusTarget } from './calendar-focus-target';
-import type { CalendarBlockTargetRequest } from './types';
+import type { CalendarFocusRequest } from './types';
 
 function occurrenceDate(item: CalendarOccurrenceItem): Date | undefined {
   const time = item.occurrence.time;
@@ -13,12 +13,12 @@ function occurrenceDate(item: CalendarOccurrenceItem): Date | undefined {
 }
 
 /**
- * Resolves a block request to one occurrence. Without an occurrence key the
+ * Resolves a navigation request to one occurrence. Without an occurrence key the
  * supplied range must contain exactly one instance of the canonical event.
  */
-export function resolveCalendarBlockTarget(
+export function resolveCalendarTarget(
   items: CalendarOccurrenceItem[],
-  request: CalendarBlockTargetRequest
+  request: CalendarFocusRequest
 ): CalendarFocusTarget | undefined {
   const matches = items.filter(
     (item) =>

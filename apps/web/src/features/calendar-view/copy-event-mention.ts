@@ -1,7 +1,11 @@
+import { getPreferredCalendarPeriodView } from '@app/features/calendar/calendar-preferences';
 import type { CalendarEvent } from '@app/features/calendar/types';
+import {
+  calendarFocusedEventSearchKey,
+  calendarPath,
+} from '@app/features/calendar-view/calendar-url';
 import { toast } from '@core/component/Toast/Toast';
 import { writeClipboardData } from '@core/util/dataTransfer';
-import { CALENDAR_BLOCK_ID } from './types';
 
 /** What a copied event needs to come back as a mention or a deep link. */
 export type CalendarMentionTarget = {
@@ -38,7 +42,7 @@ function mentionHtml(target: CalendarMentionTarget): string {
 }
 
 /**
- * Deep link to one event on the singleton calendar block, using the same
+ * Deep link to one event on the singleton Calendar view, using the same
  * host convention as the copy-link actions elsewhere in the app.
  */
 export function calendarEventDeepLink(target: {
@@ -50,10 +54,10 @@ export function calendarEventDeepLink(target: {
     hostname = 'dev.macro.com';
   }
   const params = new URLSearchParams({
-    eventId: target.eventId,
-    ...(target.occurrenceKey ? { occurrenceKey: target.occurrenceKey } : {}),
+    [calendarFocusedEventSearchKey()]: target.eventId,
   });
-  return `https://${hostname}/app/calendar/${CALENDAR_BLOCK_ID}?${params.toString()}`;
+  const path = calendarPath(getPreferredCalendarPeriodView());
+  return `https://${hostname}/app${path}?${params.toString()}`;
 }
 
 /**

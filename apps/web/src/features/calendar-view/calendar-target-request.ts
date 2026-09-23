@@ -1,21 +1,21 @@
 import { fetchCalendarMentionPreview } from '@queries/calendar/mention-preview';
 import { type Accessor, createSignal } from 'solid-js';
 import {
-  type CalendarBlockEventTime,
-  createCalendarBlockRange,
-  isCalendarBlockRange,
+  type CalendarEventTime,
+  createCalendarRange,
+  isCalendarRange,
 } from './calendar-range';
-import type { CalendarBlockProps, CalendarBlockTargetRequest } from './types';
+import type { CalendarFocusRequest, CalendarViewTarget } from './types';
 
 /** Builds a request straight from params that already carry a locator range. */
 export function targetRequestFromParams(
-  params: CalendarBlockProps,
+  params: CalendarViewTarget,
   requestId: number
-): CalendarBlockTargetRequest | undefined {
+): CalendarFocusRequest | undefined {
   if (
     typeof params.eventId !== 'string' ||
     params.eventId.length === 0 ||
-    !isCalendarBlockRange(params.range)
+    !isCalendarRange(params.range)
   ) {
     return undefined;
   }
@@ -39,9 +39,9 @@ export function targetRequestFromParams(
  * meeting to the viewer's own copy.
  */
 export async function resolveTargetRequestFromPreview(
-  params: CalendarBlockProps,
+  params: CalendarViewTarget,
   requestId: number
-): Promise<CalendarBlockTargetRequest | undefined> {
+): Promise<CalendarFocusRequest | undefined> {
   if (typeof params.eventId !== 'string' || params.eventId.length === 0) {
     return undefined;
   }
@@ -53,7 +53,7 @@ export async function resolveTargetRequestFromPreview(
   ).catch(() => null);
   if (!event) return undefined;
 
-  const time: CalendarBlockEventTime =
+  const time: CalendarEventTime =
     event.time.kind === 'timed'
       ? {
           kind: 'timed',
@@ -65,7 +65,7 @@ export async function resolveTargetRequestFromPreview(
           startDate: event.time.startDate,
           endDate: event.time.endDate,
         };
-  const range = createCalendarBlockRange(time);
+  const range = createCalendarRange(time);
   if (!range) return undefined;
 
   return {
@@ -79,8 +79,8 @@ export async function resolveTargetRequestFromPreview(
 
 /** The occurrence the block is currently aimed at, and how to re-aim it. */
 export interface CalendarTargetAim {
-  target: Accessor<CalendarBlockTargetRequest | undefined>;
-  aimAt: (params: CalendarBlockProps) => void;
+  target: Accessor<CalendarFocusRequest | undefined>;
+  aimAt: (params: CalendarViewTarget) => void;
 }
 
 /**
@@ -93,19 +93,19 @@ export interface CalendarTargetAim {
  * the click with no effect at all beyond activating the split.
  */
 export function createCalendarTargetAim(options: {
-  initial: CalendarBlockProps;
+  initial: CalendarViewTarget;
   resolveFromPreview?: (
-    params: CalendarBlockProps,
+    params: CalendarViewTarget,
     requestId: number
-  ) => Promise<CalendarBlockTargetRequest | undefined>;
+  ) => Promise<CalendarFocusRequest | undefined>;
 }): CalendarTargetAim {
   const resolveFromPreview =
     options.resolveFromPreview ?? resolveTargetRequestFromPreview;
   let nextRequestId = 1;
   let latestRequestId = 0;
-  const [target, setTarget] = createSignal<
-    CalendarBlockTargetRequest | undefined
-  >(targetRequestFromParams(options.initial, nextRequestId++));
+  const [target, setTarget] = createSignal<CalendarFocusRequest | undefined>(
+    targetRequestFromParams(options.initial, nextRequestId++)
+  );
 
   // Preview resolution is async, so a stale answer must never clobber a
   // target the user has since re-aimed or cleared. The latest answer always
@@ -114,13 +114,13 @@ export function createCalendarTargetAim(options: {
   // for the focus effect to land on.
   const applyResolvedTarget = (
     requestId: number,
-    resolved: CalendarBlockTargetRequest | undefined
+    resolved: CalendarFocusRequest | undefined
   ) => {
     if (requestId < latestRequestId) return;
     setTarget(resolved);
   };
 
-  const aimAt = (params: CalendarBlockProps) => {
+  const aimAt = (params: CalendarViewTarget) => {
     const requestId = nextRequestId++;
     latestRequestId = requestId;
     const direct = targetRequestFromParams(params, requestId);

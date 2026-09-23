@@ -29,6 +29,7 @@ import {
   scrollEventChipIntoView,
   timeGridScroller,
 } from '@app/features/calendar/utils/time-grid-scroller';
+import { useOpenEventComposer } from '@app/features/calendar-view/components/use-open-event-composer';
 import { toast } from '@core/component/Toast/Toast';
 import { ScrollIndicators } from '@core/component/VerticalScrollIndicators';
 import { isMobile } from '@core/mobile/isMobile';
@@ -56,7 +57,6 @@ import {
   calendarFocusTargetId,
   useCalendarFocus,
 } from '../calendar-focus-target';
-import { useOpenEventComposer } from './use-open-event-composer';
 
 interface CalendarScrollTarget {
   scrollElement: HTMLElement;
