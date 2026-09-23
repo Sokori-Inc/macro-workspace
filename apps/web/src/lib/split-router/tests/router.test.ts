@@ -121,6 +121,92 @@ const settle = () => new Promise<void>((resolve) => queueMicrotask(resolve));
 afterEach(() => vi.restoreAllMocks());
 
 describe('split router', () => {
+  it('becomes ready when a synchronous layout change supersedes async initialization', async () => {
+    const layout = createLayout();
+    let release!: () => void;
+    let initialSignal: AbortSignal | undefined;
+    const initial = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const router = createSplitRouter({
+      routes,
+      layout,
+      location: createMemorySplitRouterLocation('/drive'),
+      middleware: [
+        ({ cause, signal }) => {
+          if (cause === 'initial') {
+            initialSignal = signal;
+            return initial;
+          }
+        },
+      ],
+    });
+    expect(router.isReady()).toBe(false);
+    // Pending cancellation may also notify before the replacement commits.
+    const readiness: boolean[] = [];
+    router.subscribe(() => readiness.push(router.isReady()));
+    layout.open({
+      location: {
+        route: { matches: [{ id: 'legacy', params: { id: 'replacement' } }] },
+      },
+      target: 'new-split',
+      replace: false,
+    });
+    await settle();
+    expect(initialSignal?.aborted).toBe(true);
+    expect(router.isReady()).toBe(true);
+    expect(readiness.at(-1)).toBe(true);
+    release();
+    await router.settled();
+    expect(router.isReady()).toBe(true);
+    expect(layout.snapshot().entries[0].location.route.matches[0].id).toBe(
+      'legacy'
+    );
+    router.dispose();
+  });
+  it('observes initial canonicalization echoes without swallowing browser Back', async () => {
+    const layout = createLayout();
+    const location = createMemorySplitRouterLocation(
+      '/legacy/one?referral_code=code'
+    );
+    const requests: { cause: string; externalSearch?: string }[] = [];
+    const router = createSplitRouter({
+      layout,
+      routes,
+      location,
+      middleware: [
+        ({ to, cause, externalSearch, redirect }) => {
+          requests.push({ cause, externalSearch });
+          if (rootRouteMatch(to.location.route)?.id === 'legacy') {
+            return redirect(
+              `/drive/folder/${routeParams(to.location.route).id}`
+            );
+          }
+        },
+      ],
+    });
+    await router.settled();
+    const splitId = layout.snapshot().entries[0].splitId;
+    expect(location.read().pathname).toBe('/drive/folder/one');
+    expect(requests).toEqual([
+      { cause: 'initial', externalSearch: '?referral_code=code' },
+      { cause: 'initial', externalSearch: '?referral_code=code' },
+    ]);
+
+    router.navigate(splitId, '/drive/folder/two');
+    await router.settled();
+    expect(requests.at(-1)).toEqual({
+      cause: 'navigate',
+      externalSearch: undefined,
+    });
+    expect(location.history()).toHaveLength(2);
+    expect(location.back()).toBe(true);
+    await router.settled();
+    expect(routeParams(router.route(splitId)!)).toEqual({ folderId: 'one' });
+    expect(location.read().pathname).toBe('/drive/folder/one');
+    router.dispose();
+  });
+
   it('owns one manifest per router and only shares explicitly supplied state', async () => {
     const compile = vi.spyOn(path, 'compileRoutePattern');
     const layout = createLayout();
@@ -1242,7 +1328,7 @@ describe('split router', () => {
     ).toBe('one');
   });
 
-  it('repairs stale router commits that settle out of order', async () => {
+  it('accepts Back to a URL whose outbound write was coalesced', async () => {
     let current: SplitRouterExternalLocationValue = {
       pathname: '/drive',
       search: '',
@@ -1271,17 +1357,19 @@ describe('split router', () => {
     router.updateSearch(splitId, 'drive', { sort: ['name'] });
     router.updateSearch(splitId, 'drive', { sort: ['created_at'] });
 
+    const earlier = pending[0]!;
     flush(1);
-    flush();
+    pending.length = 0; // The adapter discards the superseded write.
+    expect(router.search(splitId, 'drive')).toEqual({ sort: ['created_at'] });
 
-    expect(pending).toHaveLength(1);
-    flush();
+    // A later browser Back reaches the same URL as that superseded write.
+    current = earlier;
+    for (const listener of listeners) listener(current);
     await settle();
 
-    expect(router.search(splitId, 'drive')).toEqual({
-      sort: ['created_at'],
-    });
-    expect(location.read().search).toBe('?s0.drive.sort=created_at');
+    expect(pending).toHaveLength(0);
+    expect(router.search(splitId, 'drive')).toEqual({ sort: ['name'] });
+    expect(location.read().search).toBe('?s0.drive.sort=name');
   });
 
   it('skips layout reconciliation for an identical external location', () => {

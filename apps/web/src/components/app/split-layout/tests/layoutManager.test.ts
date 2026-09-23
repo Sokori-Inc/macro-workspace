@@ -1,8 +1,5 @@
 import { agentsRouteId } from '@app/features/agents-view/core/route';
-import {
-  driveDestination,
-  driveSplitRoute,
-} from '@app/features/drive-view/primitives/drive-route';
+import { driveDestination } from '@app/features/drive-view/drive-route-navigation';
 import {
   getListNavigationSource,
   listNavigationSourceId,
@@ -27,6 +24,14 @@ import {
   shouldShowSplitCloseButton,
 } from '../layoutUtils';
 import { createMobileSwipeLayout } from '../mobile/createMobileSwipeLayout';
+import { createAppSplitRouterMiddleware } from '../split-router/app-middleware';
+import {
+  appSplitRoutes,
+  driveSplitRoute,
+  emailSplitRoute,
+  emailThreadRoute,
+  taskDetailRoute,
+} from '../split-router/app-routes';
 import { createAppSplitRouterLayout } from '../splitRouterLayout';
 
 vi.mock('@core/component/Toast/Toast', () => ({
@@ -812,6 +817,363 @@ describe('layoutManager', () => {
   });
 
   describe('router layout synchronization', () => {
+    function ingressRouter(
+      url: string,
+      options: { enabled?: boolean; loading?: boolean; touch?: boolean } = {}
+    ) {
+      return createRoot((dispose) => {
+        const manager = createSplitLayout(createMockOrchestrator(), [
+          { type: 'component', id: 'inbox' },
+        ]);
+        const routes = createRoutesManifest(appSplitRoutes);
+        const location = createMemorySplitRouterLocation(url);
+        const router = createSplitRouter({
+          routes,
+          layout: createAppSplitRouterLayout(manager, routes),
+          location,
+          middleware: createAppSplitRouterMiddleware({
+            newAppViews: () => ({
+              enabled: options.enabled ?? true,
+              loading: options.loading ?? false,
+            }),
+            isTouchDevice: () => options.touch ?? false,
+          }),
+        });
+        return { manager, location, router, dispose };
+      });
+    }
+
+    it.each([
+      ['md', 'md'],
+      ['pdf', 'pdf'],
+      ['canvas', 'canvas'],
+      ['task', 'md'],
+      ['snippet', 'md'],
+      ['skill', 'md'],
+      ['csv', 'code'],
+      ['code', 'code'],
+      ['image', 'image'],
+      ['video', 'video'],
+      ['spreadsheet', 'spreadsheet'],
+      ['unknown', 'unknown'],
+    ])(
+      'preserves legacy %s blocks on touch, including canonical links',
+      async (type, blockType) => {
+        for (const path of [
+          `/${blockType}/doc`,
+          `/drive/${type}/doc`,
+          `/drive/shared/${type}/doc`,
+          `/drive/folder/folder/${type}/doc`,
+        ]) {
+          const { manager, location, router, dispose } = ingressRouter(path, {
+            touch: true,
+          });
+          await router.settled();
+          expect(location.read().pathname).toBe(`/${blockType}/doc`);
+          expect(manager.splits()[0].content).toMatchObject({
+            type: blockType,
+            id: 'doc',
+          });
+          expect(location.history()).toHaveLength(1);
+          router.dispose();
+          dispose();
+        }
+      }
+    );
+
+    it('keeps Drive list routes on touch', async () => {
+      const { location, router, dispose } = ingressRouter(
+        '/drive/~/drive/shared/~/drive/folder/folder',
+        { touch: true }
+      );
+      await router.settled();
+      expect(location.read().pathname).toBe(
+        '/drive/~/drive/shared/~/drive/folder/folder'
+      );
+      router.dispose();
+      dispose();
+    });
+
+    it('normalizes legacy search per detail pane without overriding canonical values', async () => {
+      const { manager, location, router, dispose } = ingressRouter(
+        '/mail/one/~/channels/channel/c1/~/mail/two/~/mail' +
+          '?email_message_id=legacy&channel_message_id=first&channel_message_id=last' +
+          '&channel_thread_id=thread&s0.email-detail.messageId=explicit' +
+          '&s0.email-detail.extra=keep&s2.email-detail.messageId=&referral_code=code#focus'
+      );
+      await router.settled();
+      const [firstMail, channel, secondMail, mailList] = manager.splits();
+      expect(router.search(firstMail.id, 'email-detail')).toEqual({
+        messageId: ['explicit'],
+        extra: ['keep'],
+      });
+      expect(router.search(channel.id, 'channel-detail')).toEqual({
+        messageId: ['first', 'last'],
+        threadId: ['thread'],
+      });
+      expect(router.search(secondMail.id, 'email-detail')).toEqual({
+        messageId: [''],
+      });
+      expect(router.search(mailList.id, 'email-detail')).toBeUndefined();
+      expect(
+        new URLSearchParams(location.read().search).get('referral_code')
+      ).toBe('code');
+      expect(location.read().hash).toBe('#focus');
+      expect(location.history()).toHaveLength(1);
+      router.dispose();
+      dispose();
+    });
+
+    it('normalizes every external URL and restores targets through browser history', async () => {
+      const { manager, location, router, dispose } = ingressRouter(
+        '/mail/one?email_message_id=first'
+      );
+      await router.settled();
+      const split = manager.splits()[0];
+      const mount = split.mount;
+      expect(router.search(split.id, 'email-detail')).toEqual({
+        messageId: ['first'],
+      });
+
+      location.set('/mail/one?email_message_id=second');
+      await router.settled();
+      expect(router.search(split.id, 'email-detail')).toEqual({
+        messageId: ['second'],
+      });
+      expect(location.history()).toHaveLength(2);
+      expect(manager.splits()[0].mount).toBe(mount);
+
+      expect(location.back()).toBe(true);
+      await router.settled();
+      expect(router.search(split.id, 'email-detail')).toEqual({
+        messageId: ['first'],
+      });
+      expect(location.forward()).toBe(true);
+      await router.settled();
+      expect(router.search(split.id, 'email-detail')).toEqual({
+        messageId: ['second'],
+      });
+      expect(location.history()).toHaveLength(2);
+      router.dispose();
+      dispose();
+    });
+
+    it.each([
+      { enabled: false, loading: false, touch: false },
+      { enabled: true, loading: true, touch: false },
+      { enabled: true, loading: false, touch: true },
+    ])(
+      'preserves full-block legacy targets when inline detail is unsupported: %o',
+      async (options) => {
+        const { location, router, dispose } = ingressRouter(
+          '/email/one/~/channel/c1?email_message_id=message&channel_message_id=first' +
+            '&channel_message_id=last&channel_thread_id=thread',
+          options
+        );
+        await router.settled();
+        expect(location.read().pathname).toBe('/email/one/~/channel/c1');
+        const query = new URLSearchParams(location.read().search);
+        expect(query.getAll('email_message_id')).toEqual(['message']);
+        expect(query.getAll('channel_message_id')).toEqual(['first', 'last']);
+        expect(query.get('channel_thread_id')).toBe('thread');
+        expect(
+          [...query.keys()].some(
+            (key) => key.startsWith('s0.') || key.startsWith('s1.')
+          )
+        ).toBe(false);
+        router.dispose();
+        dispose();
+      }
+    );
+
+    it('upgrades renderable legacy details and preserves repeated raw target values', async () => {
+      let dispose!: () => void;
+      let router!: ReturnType<typeof createSplitRouter<string>>;
+      let location!: ReturnType<typeof createMemorySplitRouterLocation>;
+      createRoot((rootDispose) => {
+        dispose = rootDispose;
+        const manager = createSplitLayout(createMockOrchestrator(), [
+          { type: 'email', id: 'thread-1' },
+        ]);
+        const routes = createRoutesManifest(appSplitRoutes);
+        location = createMemorySplitRouterLocation(
+          '/email/thread-1?email_message_id=first&email_message_id=last'
+        );
+        router = createSplitRouter({
+          routes,
+          layout: createAppSplitRouterLayout(manager, routes),
+          location,
+          middleware: createAppSplitRouterMiddleware({
+            newAppViews: () => ({ enabled: true, loading: false }),
+            isTouchDevice: () => false,
+          }),
+        });
+      });
+
+      await router.settled();
+      expect(location.read().pathname).toBe('/mail/thread-1');
+      const query = new URLSearchParams(location.read().search);
+      expect(query.getAll('email_message_id')).toEqual(['first', 'last']);
+      expect(query.getAll('s0.email-detail.messageId')).toEqual([
+        'first',
+        'last',
+      ]);
+      expect(location.history()).toHaveLength(1);
+      dispose();
+    });
+
+    it.each([
+      { enabled: false, touch: false },
+      { enabled: true, touch: true },
+      { enabled: false, touch: true },
+    ])(
+      'keeps legacy task detail when enabled=$enabled and touch=$touch',
+      async ({ enabled, touch }) => {
+        let dispose!: () => void;
+        let router!: ReturnType<typeof createSplitRouter<string>>;
+        let location!: ReturnType<typeof createMemorySplitRouterLocation>;
+        createRoot((rootDispose) => {
+          dispose = rootDispose;
+          const manager = createSplitLayout(createMockOrchestrator(), [
+            { type: 'task', id: 'task-1' },
+          ]);
+          const routes = createRoutesManifest(appSplitRoutes);
+          location = createMemorySplitRouterLocation('/task/task-1');
+          router = createSplitRouter({
+            routes,
+            layout: createAppSplitRouterLayout(manager, routes),
+            location,
+            middleware: createAppSplitRouterMiddleware({
+              newAppViews: () => ({ enabled, loading: false }),
+              isTouchDevice: () => touch,
+            }),
+          });
+        });
+
+        await router.settled();
+        expect(location.read().pathname).toBe('/task/task-1');
+        dispose();
+      }
+    );
+
+    it('keeps a migrated workspace mounted across typed detail history', () => {
+      createRoot((dispose) => {
+        const manager = createSplitLayout(createMockOrchestrator(), [
+          { type: 'component', id: 'mail' },
+        ]);
+        const routes = createRoutesManifest(appSplitRoutes);
+        const router = createSplitRouter({
+          routes,
+          layout: createAppSplitRouterLayout(manager, routes),
+          location: createMemorySplitRouterLocation('/mail'),
+        });
+        const split = manager.splits()[0]!;
+        const mount = split.mount;
+        const handle = manager.getSplit(split.id)!;
+        const stopCapture = handle.registerEntryStateCaptor(
+          'email.listState',
+          () => ({
+            focusKey: 'one',
+            scrollOffset: 420,
+          })
+        );
+
+        router.navigate(split.id, {
+          route: emailThreadRoute,
+          params: { threadId: 'one' },
+        });
+        stopCapture(); // The list is disposed when its detail outlet takes over.
+        expect(handle.currentEntryState()).toMatchObject({
+          'email.listState': { focusKey: 'one', scrollOffset: 420 },
+        });
+        router.navigate(split.id, {
+          route: emailThreadRoute,
+          params: { threadId: 'two' },
+        });
+
+        expect(manager.splits()[0]?.mount).toBe(mount);
+        expect(manager.splits()[0]?.content).toMatchObject({
+          type: 'component',
+          id: 'mail',
+        });
+        expect(router.route(split.id)?.matches.at(-1)?.params).toEqual({
+          threadId: 'two',
+        });
+
+        router.navigate(split.id, -1);
+        expect(router.route(split.id)?.matches.at(-1)?.params).toEqual({
+          threadId: 'one',
+        });
+        router.navigate(split.id, {
+          route: emailSplitRoute,
+          params: {},
+        });
+        expect(router.route(split.id)?.matches).toEqual([
+          { id: 'view-mail', params: {} },
+        ]);
+        expect(manager.splits()[0]?.mount).toBe(mount);
+        router.dispose();
+        dispose();
+      });
+    });
+
+    it('uses canonical detail claims across routed workspaces and legacy blocks', () => {
+      createRoot((dispose) => {
+        const manager = createSplitLayout(createMockOrchestrator(), [
+          { type: 'component', id: 'tasks' },
+          { type: 'md', id: 'task-1' },
+        ]);
+        const routes = createRoutesManifest(appSplitRoutes);
+        const router = createSplitRouter({
+          routes,
+          layout: createAppSplitRouterLayout(manager, routes),
+          location: createMemorySplitRouterLocation('/tasks/~/md/task-1'),
+        });
+        const [tasks, legacy] = manager.splits();
+        const accepted = router.route(tasks.id);
+
+        router.navigate(tasks.id, {
+          route: taskDetailRoute,
+          params: { taskId: 'task-1' },
+        });
+
+        expect(router.route(tasks.id)).toEqual(accepted);
+        expect(manager.activeSplitId()).toBe(legacy.id);
+        expect(manager.splits()).toHaveLength(2);
+        router.dispose();
+        dispose();
+      });
+    });
+
+    it('keeps duplicate list roots independent while reusing claimed email details', () => {
+      createRoot((dispose) => {
+        const manager = createSplitLayout(createMockOrchestrator(), [
+          { type: 'component', id: 'mail' },
+          { type: 'component', id: 'mail' },
+        ]);
+        const routes = createRoutesManifest(appSplitRoutes);
+        const router = createSplitRouter({
+          routes,
+          layout: createAppSplitRouterLayout(manager, routes),
+          location: createMemorySplitRouterLocation('/mail/one/~/mail'),
+        });
+        const [owner, other] = manager.splits();
+        const otherRoute = router.route(other.id);
+        manager.activateSplit(other.id);
+
+        router.navigate(other.id, {
+          route: emailThreadRoute,
+          params: { threadId: 'one' },
+        });
+
+        expect(router.route(other.id)).toEqual(otherRoute);
+        expect(manager.activeSplitId()).toBe(owner.id);
+        expect(manager.splits()).toHaveLength(2);
+        router.dispose();
+        dispose();
+      });
+    });
+
     it.each(['drive', 'drive/md/second-document'])(
       'navigates a second Drive pane independently from %s, including history',
       (initialPath) => {

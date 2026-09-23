@@ -1,4 +1,11 @@
+import { isTouchDevice } from '@core/mobile/isTouchDevice';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { inboxPreviewNavigation } from '../inbox-view/inbox-preview-navigation';
+import { inboxPreviewSelection } from '../inbox-view/inbox-route';
+
+vi.mock('@core/mobile/isTouchDevice', () => ({
+  isTouchDevice: vi.fn(() => false),
+}));
 
 const toastAlert = vi.hoisted(() => vi.fn());
 vi.mock('@core/component/Toast/Toast', () => ({
@@ -113,6 +120,7 @@ import {
 afterEach(() => {
   setGlobalSplitManager(undefined);
   vi.clearAllMocks();
+  vi.mocked(isTouchDevice).mockReturnValue(false);
 });
 
 describe('agent session search navigation', () => {
@@ -391,6 +399,57 @@ describe('calendar block navigation', () => {
 });
 
 describe('Drive document routing', () => {
+  it('keeps task documents as legacy task blocks on touch', async () => {
+    vi.mocked(isTouchDevice).mockReturnValue(true);
+    const openWithSplit = vi.fn(() => ({ status: 'unavailable' }));
+    setGlobalSplitManager({
+      activeSplit: vi.fn(),
+      getOrchestrator: vi.fn(() => ({})),
+      openWithSplit,
+    } as unknown as SplitManager);
+    await openEntityInSplitFromUnifiedList(
+      {
+        type: 'document',
+        id: 'task-1',
+        fileType: 'md',
+        subType: { type: 'task' },
+      } as EntityData,
+      {}
+    );
+    expect(openWithSplit).toHaveBeenCalledWith(
+      { type: 'task', id: 'task-1', params: undefined },
+      expect.any(Object)
+    );
+  });
+  it.each([
+    'md',
+    'pdf',
+    'canvas',
+    'code',
+    'image',
+    'video',
+    'spreadsheet',
+    'unknown',
+  ] as const)(
+    'opens %s documents as legacy blocks on touch',
+    async (fileType) => {
+      vi.mocked(isTouchDevice).mockReturnValue(true);
+      const openWithSplit = vi.fn(() => ({ status: 'unavailable' }));
+      setGlobalSplitManager({
+        activeSplit: vi.fn(),
+        getOrchestrator: vi.fn(() => ({})),
+        openWithSplit,
+      } as unknown as SplitManager);
+      await openEntityInSplitFromUnifiedList(
+        { type: 'document', id: 'doc-1', fileType } as EntityData,
+        { openInNewSplit: true }
+      );
+      expect(openWithSplit).toHaveBeenCalledWith(
+        { type: fileType, id: 'doc-1', params: undefined },
+        expect.objectContaining({ preferNewSplit: true })
+      );
+    }
+  );
   it.each(['md', 'pdf', 'canvas'] as const)(
     'opens %s documents as canonical Drive content',
     async (fileType) => {
@@ -437,6 +496,55 @@ describe('Drive document routing', () => {
       );
     }
   );
+});
+
+describe('Inbox calendar preview navigation', () => {
+  it.each([
+    { kind: 'allDay' as const, startDate: '2025-01-01', endDate: '2025-01-03' },
+    {
+      kind: 'timed' as const,
+      startsAt: '2025-01-01T12:00:00.000Z',
+      endsAt: '2025-01-01T13:00:00.000Z',
+    },
+  ])('round-trips $kind event times', (time) => {
+    const result = inboxPreviewNavigation({
+      type: 'calendar_event',
+      id: 'event-1',
+      time,
+    });
+    expect(result.search.calendarTimeKind).toBe(time.kind);
+    expect(inboxPreviewSelection(result.params, result.search)).toMatchObject({
+      type: 'calendar_event',
+      id: 'event-1',
+      time,
+    });
+  });
+});
+
+describe('Inbox channel preview navigation', () => {
+  it('preserves explicit message targets on whole-channel selections', () => {
+    const result = inboxPreviewNavigation({
+      type: 'channel',
+      id: 'channel-1',
+      target: { messageId: 'message-1', threadId: 'thread-1' },
+    });
+    expect(result.params).toEqual({
+      blockType: 'channel',
+      previewId: 'channel-1',
+    });
+    expect(result.search).toMatchObject({
+      targetMessageId: 'message-1',
+      targetThreadId: 'thread-1',
+    });
+  });
+  it('keeps untargeted channels at latest', () => {
+    expect(
+      inboxPreviewNavigation({ type: 'channel', id: 'channel-1' }).search
+    ).toMatchObject({
+      targetMessageId: '',
+      targetThreadId: '',
+    });
+  });
 });
 
 describe('getChannelEntityTarget', () => {

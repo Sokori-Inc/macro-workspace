@@ -9,14 +9,18 @@
 | `/app/invite?token=<token>` | GTM invite welcome page ("Welcome, <first name>", Continue → signup). Links come from the staff portal, last 48h, and grant the first month of Premium free once the account is created |
 | `/app/internal/invite-links` | Macro staff only (`@macro.com`): create GTM invite links and track opens, signups, and subscriptions |
 | `/app/inbox` | Desktop: Home (notifications + recent activity); mobile: Notifications soup |
+| `/app/inbox/<block-type>/<uuid>` | Home with a heterogeneous item opened inline; target metadata is stored in `sN.inbox-preview.*` query values |
 | `/app/mail` | Email client |
+| `/app/mail/<uuid>` | Email with a thread opened inline; a targeted message uses `sN.email-detail.messageId` |
 | `/app/channels` | Channels list |
+| `/app/channels/channel/<uuid>` | Channels with a conversation opened inline; message/thread targets use `sN.channel-detail.*` |
 | `/app/drive` | Files (Drive defaults to My Files) |
 | `/app/drive/<recent-or-shared>` | A Drive tab (`/app/drive/tab/<...>` remains a compatibility alias) |
 | `/app/drive/folder/<uuid>` | A Drive folder; breadcrumbs resolve from current accessible folder data |
 | `/app/drive/<document-type>/<uuid>` | An item opened inline in My Files |
 | `/app/drive/folder/<uuid>/<document-type>/<uuid>` | An item opened inline in its Drive folder; document types include `md`, `task`, `skill`, `snippet`, `canvas`, `pdf`, `code`, `csv`, `image`, `video`, `spreadsheet`, and `unknown` |
 | `/app/tasks` | Tasks table |
+| `/app/tasks/<uuid>` | Tasks with a task document opened inline |
 | `/app/agents` | AI chats / agents list |
 | `/app/agents/<uuid>` | Chat agent session with the Agents sidebar |
 | `/app/coders/<uuid>` | Code session with the Agents sidebar |
@@ -33,6 +37,12 @@
 | `/app/md/<doc>/chat/<chat>` | Doc + doc-scoped chat in a split |
 | `/app/md/<doc>/channel/<channel>` | Doc + channel in a split |
 | `/app/settings/account` | Settings (also `/app/settings/api-keys`, `/mcp-server`, `/shortcuts`, etc.) |
+
+On touch devices, documents (including tasks) open in legacy blocks rather than
+inline Drive details. Canonical `/app/drive/.../<document-type>/<uuid>` links also
+fall back to legacy document routes. This uses touch detection, not the native-app
+check: in DevTools, enable touch emulation rather than only narrowing the viewport.
+Legacy document URLs upgrade to Drive only when desktop detail rendering is enabled.
 
 Splits: the app is a tiling window manager. Public variable-length routes use
 `~` as the boundary between panes
@@ -51,9 +61,19 @@ headings. Tags and folders have a separate disclosure button on the **right** of
 the row: clicking the label selects the destination; clicking Expand/Collapse
 only opens or closes its children. Selecting a Drive folder or tab closes an
 inline detail into that destination; it does not navigate back to Drive's root.
-Multiple Drive panes navigate their folders, tabs, and history independently;
-returning to a list does not activate another Drive pane. Opening a document
-already displayed in another pane still activates its owner.
+Home, Email, Tasks, Channels, and Drive keep their workspace provider mounted
+while typed child routes own the accepted inline detail. Tasks and Email replace
+the list with detail, capturing its focus and scroll state before disposal. Their child
+selection participates in browser Back/Forward independently per pane. Explicit
+return controls navigate to the workspace's list root. Multiple panes navigate
+their child routes and history independently; returning to a list does not
+activate another pane. Opening a resource already displayed in another pane
+still activates its owner through router claim arbitration; the compatibility
+preview guard can instead reject a conflicting embedded preview. On touch, or
+when the new-app-view flag cannot render the detail, Home, Email, Tasks, and
+Channels detail URLs fall back to the existing full-block surface. Legacy email
+and channel message targets are normalized into per-pane search by ingress
+middleware, including external/history navigation; explicit namespaced values win.
 Unavailable documents retain their error/retry UI rather than navigating away.
 Long destination names are single-line and
 expose the full name on hover. Section chevrons point right and stay visible when
@@ -414,7 +434,9 @@ create a session before the user sends. Repeating it focuses the existing draft.
 
 Splits navigate independently. The retired Preview Pair mode no longer creates
 an adjacent viewer, redirects list navigation, or links split sizes and history.
-Inline details in workspaces continue to use their own navigation stack.
+Inline details in Home, Email, Tasks, Channels, and Drive use typed split-router
+child routes; there is no competing view-local detail stack or persisted selected
+ID. List filters, sidebar preferences, and focused-list state remain view-owned.
 Split back/forward navigation skips entries whose entities are open elsewhere,
 without moving focus or showing a toast. Those entries remain in history and
 become reachable again after their owning view releases them. A direction is

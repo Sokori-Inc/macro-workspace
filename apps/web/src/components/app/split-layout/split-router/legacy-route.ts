@@ -3,10 +3,8 @@ import {
   agentsRouteSegments,
 } from '@app/features/agents-view/core/route';
 import type { DriveLocation } from '@app/features/drive-view/core/types';
-import {
-  type DriveDocumentRoute,
-  driveDestination,
-} from '@app/features/drive-view/primitives/drive-route';
+import type { DriveDocumentRoute } from '@app/features/drive-view/primitives/drive-route';
+import { URL_PARAMS as EMAIL_URL_PARAMS } from '@app/features/email-thread/core/location';
 import {
   defineRoute,
   routeParams,
@@ -24,6 +22,7 @@ import {
 } from '@app/lib/split-router/routes';
 import { parseSearchState } from '@app/lib/split-router/search';
 import { isRecord } from '@app/lib/split-router/utils';
+import { URL_PARAMS as CHANNEL_URL_PARAMS } from '@block-channel/constants';
 import type { BlockAlias, BlockName } from '@core/block';
 import { isBlockAlias, resolveBlockAlias } from '@core/constant/allBlocks';
 import { z } from 'zod';
@@ -177,7 +176,12 @@ export function driveSplitContent(
   }
   if (document) {
     matches.push({
-      id: driveDestination(location, document).route.id,
+      id:
+        location.kind === 'folder'
+          ? 'drive-folder-document'
+          : location.tab === 'owned'
+            ? 'drive-document'
+            : 'drive-tab-document',
       params: { documentId: document.id, documentType: document.type },
     });
   }
@@ -304,6 +308,12 @@ export const legacySplitRoute = defineRoute({
   path: ':type/:id',
   search: '*',
   params: z.object({ type: z.string().min(1), id: z.string().min(1) }),
+  externalSearch: (entry) => {
+    const { type } = routeParams(entry.location.route);
+    if (type === 'email') return Object.values(EMAIL_URL_PARAMS);
+    if (type === 'channel') return Object.values(CHANNEL_URL_PARAMS);
+    return [];
+  },
   claim: ({ type, id }) => {
     const content = decodeLegacyPair(type, id);
     if (!content) return;
