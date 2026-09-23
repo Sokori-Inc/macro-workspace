@@ -278,6 +278,47 @@ describe('anchored comment links', () => {
     );
   });
 
+  it.each([
+    [true, 'discards a draft as soon as a press outside dismisses it'],
+    [false, 'keeps a thread the dismissing press activated'],
+  ])('%#: %s', async (isActive) => {
+    const setActiveThread = vi.fn();
+    const view = render(() => (
+      <CommentsContext.Provider
+        value={{
+          documentId: 'document',
+          documentType: 'md',
+          canComment: () => true,
+          isDocumentOwner: () => true,
+          highlightedCommentId: () => null,
+          setActiveThread,
+          setThreadHeight: () => {},
+          getCommentById: () => undefined,
+          ownedComment: () => false,
+          inComment: true,
+          commentOperations: noopCommentOperations,
+          messageOperations: { createComment: async () => null },
+        }}
+      >
+        <MinimizedThread
+          comment={{ ...comment, isNew: true }}
+          layout={{ calculatedYPos: 0 }}
+          isActive={isActive}
+        />
+      </CommentsContext.Provider>
+    ));
+    await new Promise((resolve) => setTimeout(resolve));
+    fireEvent.pointerDown(document.body);
+    await waitFor(() =>
+      expect(
+        view.container.ownerDocument
+          .querySelector('[data-comment-thread]')!
+          .parentElement!.hasAttribute('data-expanded')
+      ).toBe(false)
+    );
+    expect(setActiveThread.mock.calls).toEqual(isActive ? [[null]] : []);
+  });
+
   it.each(['md', 'task', 'snippet', 'skill', 'pdf'] as const)(
     'copies legacy %s root and reply links without a block provider',
     async (documentType) => {
