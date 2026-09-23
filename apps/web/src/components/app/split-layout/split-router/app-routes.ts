@@ -47,7 +47,7 @@ const agentsSplitRoutes = ['agents', 'coders', 'agent-chats'].map((section) =>
     aliases: section === 'agent-chats' ? ['agent-chats/:id'] : undefined,
     params: z.object({ id: z.string() }),
     component: lazyView((views) => views.AgentsRouteView),
-    remountKey: ({ id }: Record<string, unknown>) => String(id),
+    remountKey: ({ id }) => id,
     claim: ({ id }) => ({
       namespace: section === 'agent-chats' ? 'chat' : 'agent',
       id,
